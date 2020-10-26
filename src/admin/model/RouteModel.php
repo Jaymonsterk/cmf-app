@@ -2,7 +2,7 @@
 // +----------------------------------------------------------------------
 // | ThinkCMF [ WE CAN DO IT MORE SIMPLE ]
 // +----------------------------------------------------------------------
-// | Copyright (c) 2013-2019 http://www.thinkcmf.com All rights reserved.
+// | Copyright (c) 2013-2018 http://www.thinkcmf.com All rights reserved.
 // +----------------------------------------------------------------------
 // | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
 // +----------------------------------------------------------------------
@@ -39,40 +39,29 @@ class RouteModel extends Model
 
             // 解析URL
             $info = parse_url($fullUrl);
+            
+	        //TODO 插件设置
+            $path = explode("/", $info['path']);
+            if (count($path) != 3) {//必须是完整 url
+                continue;
+            }
 
-            $vars = [];
+            $module = strtolower($path[0]);
+
             // 解析参数
+            $vars = [];
             if (isset($info['query'])) { // 解析地址里面参数 合并到vars
-                parse_str($info['query'], $vars);
-                ksort($vars);
+                parse_str($info['query'], $params);
+                $vars = array_merge($params, $vars);
             }
 
+            $vars_src = $vars;
 
-            if (isset($info['scheme'])) { //插件
-                $plugin     = cmf_parse_name($info['scheme']);
-                $controller = cmf_parse_name($info['host']);
-                $action     = trim(strtolower($info['path']), '/');
+            ksort($vars);
 
-                $pluginParams = [
-                    '_plugin'     => $plugin,
-                    '_controller' => $controller,
-                    '_action'     => $action,
-                ];
+            $path = $info['path'];
 
-                $path = '\\cmf\\controller\\PluginController@index?' . http_build_query($pluginParams);
-
-                $fullUrl = $path . (empty($vars) ? '' : '&') . http_build_query($vars);
-
-            } else { // 应用
-                $path = explode("/", $info['path']);
-                if (count($path) != 3) {//必须是完整 url
-                    continue;
-                }
-
-                $path = $info['path'];
-
-                $fullUrl = $path . (empty($vars) ? "" : "?") . http_build_query($vars);
-            }
+            $fullUrl = $path . (empty($vars) ? "" : "?") . http_build_query($vars);
 
             $url = htmlspecialchars_decode($er['url']);
 
@@ -100,9 +89,9 @@ class RouteModel extends Model
         cache("routes", $cacheRoutes);
 
         if (strpos(cmf_version(), '5.0.') === false) {
-            $routeDir = CMF_DATA . "route/"; // 5.1
+            $routeDir = CMF_ROOT . "data/route/"; // 5.1
         } else {
-            $routeDir = CMF_DATA . "conf/"; // 5.0
+            $routeDir = CMF_ROOT . "data/conf/"; // 5.0
         }
 
         if (!file_exists($routeDir)) {
@@ -111,7 +100,7 @@ class RouteModel extends Model
 
         $route_file = $routeDir . "route.php";
 
-        file_put_contents($route_file, "<?php\treturn " . var_export($allRoutes, true) . ";");
+        file_put_contents($route_file, "<?php\treturn " . stripslashes(var_export($allRoutes, true)) . ";");
 
         return $cacheRoutes;
     }
@@ -187,7 +176,8 @@ class RouteModel extends Model
 
     public function existsRoute($url, $fullUrl)
     {
-        $findRouteCount = $this->where('url', $url)->whereNotLike('full_url', $fullUrl)->count();
+
+        $findRouteCount = $this->where(['url' => $url, 'full_url' => ['neq', $fullUrl]])->count();
 
         return $findRouteCount > 0 ? true : false;
     }
@@ -196,10 +186,6 @@ class RouteModel extends Model
     {
         $fullUrl   = $this->buildFullUrl($action, $vars);
         $findRoute = $this->where('full_url', $fullUrl)->find();
-
-        if (preg_match("/[()'\";]/", $url)) {
-            return false;
-        }
 
         if ($findRoute) {
             if (empty($url)) {
