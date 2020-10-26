@@ -39,7 +39,8 @@ class RouteModel extends Model
 
             // 解析URL
             $info = parse_url($fullUrl);
-
+            
+	        //TODO 插件设置
             $path = explode("/", $info['path']);
             if (count($path) != 3) {//必须是完整 url
                 continue;
